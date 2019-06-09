@@ -11,7 +11,6 @@ function debounce(fn, delay = 100) {
       timeout = null;
     }
     timeout = setTimeout(() => {
-      console.log("falling");
       fn(...args);
     }, delay);
   };
@@ -197,9 +196,6 @@ function SearchBar({ onSearch }) {
         <button css={{ flex: 1 }} onClick={onSearch.bind(null, pattern)}>
           Search
         </button>
-        <button css={{ flex: 1 }} disabled={loading} onClick={register}>
-          {loading ? "Fetching" : "Register"}
-        </button>
       </Row>
     </Column>
   );
@@ -239,31 +235,41 @@ function useTabulation({ amount = 50, resource }) {
   }, [resource]);
 }
 
-function useFilter(resource = []) {
-  const [filter, setFilter] = useState("");
+function useFileFilter(resource = []) {
+  const [filters, setFilters] = useState([]);
   let filteredResource = useMemo(() => {
-    if (!filter) return resource;
+    if (filters.length === 0) return resource;
     return resource.filter(item => {
-      return JSON.stringify(item).includes(filter);
+      return filters.includes("/" + item.path);
     });
-  }, [resource, filter]);
+  }, [resource, filters]);
   return {
     filteredResource,
-    filter,
-    setFilter
+    filters,
+    addFilter(path) {
+      setFilters(old => {
+        return [...old, path];
+      });
+    },
+    clearFilters() {
+      setFilters([]);
+    }
   };
 }
 
 function useSearch() {
   const [results, setResult] = useState([]);
-  const { filter, setFilter, filteredResource } = useFilter(results);
+  const { filters, addFilter, filteredResource, clearFilters } = useFileFilter(
+    results
+  );
   const tabulated = useTabulation({ resource: filteredResource });
   const tree = useTree(results);
 
   return {
     tree,
-    filter,
-    setFilter,
+    filters,
+    addFilter,
+    clearFilters,
     tabulated,
     results,
     setResult
@@ -461,19 +467,20 @@ function ProjectList() {
       .then(response => response.json())
       .then(repos => {
         setProjects(repos);
-        console.log("name", repos);
       });
   }, []);
 
   return (
-    <div>
+    <Column>
       <div>
         {projects.map((project, i) => (
           <p key={i}>{project.name}</p>
         ))}
       </div>
-      <button onClick={register}>Register</button>
-    </div>
+      <Row>
+        <button onClick={register}>Register</button>
+      </Row>
+    </Column>
   );
 }
 
@@ -483,25 +490,23 @@ function App() {
     setResult,
     tabulated,
     tree,
-    filter,
-    setFilter
+    filters,
+    addFilter,
+    clearFilters
   } = useSearch();
   const [fresh, setFresh] = useState(true);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState(0);
 
-  console.log("tabulated", tabulated);
-
   function search(pattern) {
     setResult([]);
     setFresh(false);
     setLoading(true);
-    setFilter("");
+    clearFilters();
     setTab(0);
     fetch(`/api/search?pattern=${encodeURIComponent(pattern)}`)
       .then(r => r.json())
       .then(result => {
-        console.log("result.length", result.length);
         setResult(result);
         setLoading(false);
       });
@@ -521,10 +526,12 @@ function App() {
             <SearchBar onSearch={search} />
           </PanelSection>
           <PanelSection title="File Filter" hideByDefault={true}>
-            <DelayInput onChange={setFilter} />
+            {filters.map((filter, i) => (
+              <div key={i}>{filter}</div>
+            ))}
           </PanelSection>
           <PanelSection title="File Tree">
-            <TreeView tree={tree} onClick={path => alert("path: " + path)} />
+            <TreeView tree={tree} onClick={addFilter} />
           </PanelSection>
           <PanelSection title="Projects" hideByDefault={true}>
             <ProjectList />
