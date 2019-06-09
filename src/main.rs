@@ -265,25 +265,24 @@ impl Project {
     }
 
     fn get_path_until_project(&self, path: &Path) -> String {
-        let project_components = self.get_path();
-        let project_path = Path::new(project_components.as_str());
+        let project_path = self.get_path();
+        let project_path = Path::new(project_path.as_str());
 
-        let mut parent = path;
         let mut segments: Vec<&OsStr> = vec![];
-        while parent != project_path {
-            segments.push(path.file_name().unwrap());
-            parent = path.parent().unwrap();
-            println!("{:?}, {:?}", segments, parent);
+        let mut cursor = path;
+        while cursor != project_path {
+            segments.push(cursor.file_name().unwrap());
+            cursor = cursor.parent().unwrap();
         }
 
-        let mut output = String::new();
+        let mut relative_path = self.name.clone();
         while segments.len() > 0 {
             let segment = segments.pop().unwrap();
-            output = output + segment.to_str().unwrap();
+            let segment = segment.to_str().unwrap();
+            relative_path = relative_path + "/" + segment;
         }
 
-        println!("Testing = {:?}", output);
-        output
+        relative_path
     }
 
     fn search(&self, pattern: &String) -> Vec<SearchResult> {
@@ -333,14 +332,13 @@ impl Project {
             .map(|line| {
                 line_number += 1;
                 if let Some(matched) = matcher.find(line) {
-                    self.get_path_until_project(file_name);
                     let file_name = file_name.clone().to_str().unwrap();
                     return Some(SearchResult {
                         start: matched.start() as u64,
                         end: matched.end() as u64,
                         line: line_number,
                         content: String::from(line),
-                        path: file_name.to_string(),
+                        path: self.get_path_until_project(Path::new(file_name)),
                     });
                 }
                 return None;
@@ -352,18 +350,14 @@ impl Project {
     }
 }
 
-#[get("/search?<pattern>&<directory>")]
-fn search(pattern: String, directory: Option<String>) -> Json<Vec<Content>> {
-    if directory == None {
-        let directory = Paths::get_resources();
-        let directory = Path::new(directory.as_str());
-        println!("Directory = {:?}", directory);
-        return Json(search_dir(directory, &pattern));
-    } else {
-        let directory = directory.unwrap();
-        let directory = Path::new(directory.as_str());
-        return Json(search_dir(&directory, &pattern));
-    }
+#[get("/search?<pattern>")]
+fn search(pattern: String) -> Json<Vec<SearchResult>> {
+    let projects = Project::get_projects();
+    let projects: Vec<SearchResult> = projects
+        .into_iter()
+        .flat_map(|project| project.search(&pattern))
+        .collect();
+    Json(projects)
 }
 
 #[get("/repos")]
