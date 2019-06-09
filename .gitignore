@@ -1,5 +1,5 @@
 /target
 **/*.rs.bk
 node_modules/
-/dist/bundle.js
+/static/bundle.js
 resources/
