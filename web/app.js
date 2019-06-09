@@ -3,6 +3,33 @@ import ReactDOM from "react-dom";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { jsx, css } from "@emotion/core";
 
+function debounce(fn, delay = 100) {
+  let timeout = null;
+  return (...args) => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    timeout = setTimeout(() => {
+      console.log("falling");
+      fn(...args);
+    }, delay);
+  };
+}
+
+function DelayInput({ onChange: __onChange }) {
+  let [value, setValue] = useState("");
+
+  let onChange = useMemo(() => debounce(__onChange, 500), []);
+
+  const handleChange = e => {
+    setValue(e.target.value);
+    onChange(e.target.value);
+  };
+
+  return <input value={value} onChange={handleChange} />;
+}
+
 function HighlightContent({ content, start, end }) {
   let pre = content.slice(0, start);
   let highlight = content.slice(start, end);
@@ -114,7 +141,7 @@ function Row({ children, elevation = 5 }) {
       css={css`
         display: flex;
         flex-direction: row;
-        z-index: ${() => elevation};
+        z-index: ${elevation};
       `}
     >
       {children}
@@ -126,7 +153,6 @@ function Column({ children, elevation = 5 }) {
   return (
     <div
       css={css`
-        ${css}
         display: flex;
         flex-direction: column;
         z-index: ${elevation};
@@ -213,13 +239,31 @@ function useTabulation({ amount = 50, resource }) {
   }, [resource]);
 }
 
+function useFilter(resource = []) {
+  const [filter, setFilter] = useState("");
+  let filteredResource = useMemo(() => {
+    if (!filter) return resource;
+    return resource.filter(item => {
+      return JSON.stringify(item).includes(filter);
+    });
+  }, [resource, filter]);
+  return {
+    filteredResource,
+    filter,
+    setFilter
+  };
+}
+
 function useSearch() {
   const [results, setResult] = useState([]);
-  const tabulated = useTabulation({ resource: results });
+  const { filter, setFilter, filteredResource } = useFilter(results);
+  const tabulated = useTabulation({ resource: filteredResource });
   const tree = useTree(results);
 
   return {
     tree,
+    filter,
+    setFilter,
     tabulated,
     results,
     setResult
@@ -338,7 +382,7 @@ function PanelSection({ title, children, hideByDefault = false }) {
           background: "#ffffff34",
           borderRadius: ".5rem",
           padding: "1rem",
-          maxHeight: "10rem",
+          maxHeight: "20rem",
           opacity: !hidden ? 1 : 0,
           display: !hidden ? "block" : "none",
           overflow: "auto"
@@ -350,7 +394,7 @@ function PanelSection({ title, children, hideByDefault = false }) {
   );
 }
 
-function TreeView({ tree, depth = 0 }) {
+function TreeView({ tree, depth = 0, parent = "", onClick = () => {} }) {
   let keys = Object.keys(tree);
   return (
     <ul
@@ -368,7 +412,7 @@ function TreeView({ tree, depth = 0 }) {
         return (
           <li key={i}>
             <span
-              onClick={() => setHide(!hide)}
+              onClick={() => onClick(parent + "/" + key)}
               css={{
                 cursor: "pointer",
                 border: "1px solid transparent",
@@ -382,7 +426,12 @@ function TreeView({ tree, depth = 0 }) {
               {key}
             </span>
             {Object.values(tree[key]).length === 0 ? null : (
-              <TreeView tree={tree[key]} depth={depth + 1} />
+              <TreeView
+                tree={tree[key]}
+                depth={depth + 1}
+                parent={parent + "/" + key}
+                onClick={onClick}
+              />
             )}
           </li>
         );
@@ -391,8 +440,52 @@ function TreeView({ tree, depth = 0 }) {
   );
 }
 
+function ProjectList() {
+  let [projects, setProjects] = useState([]);
+
+  const register = () => {
+    const url = prompt("Repo Name");
+    fetch(`/api/register?url=${encodeURIComponent(url)}`)
+      .then(r => r.text())
+      .then(() => {
+        return fetch("/api/repos");
+      })
+      .then(r => r.json())
+      .then(repos => {
+        setProjects(repos);
+      });
+  };
+
+  useEffect(() => {
+    fetch("/api/repos")
+      .then(response => response.json())
+      .then(repos => {
+        setProjects(repos);
+        console.log("name", repos);
+      });
+  }, []);
+
+  return (
+    <div>
+      <div>
+        {projects.map((project, i) => (
+          <p key={i}>{project.name}</p>
+        ))}
+      </div>
+      <button onClick={register}>Register</button>
+    </div>
+  );
+}
+
 function App() {
-  const { results, setResult, tabulated, tree } = useSearch();
+  const {
+    results,
+    setResult,
+    tabulated,
+    tree,
+    filter,
+    setFilter
+  } = useSearch();
   const [fresh, setFresh] = useState(true);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState(0);
@@ -403,6 +496,7 @@ function App() {
     setResult([]);
     setFresh(false);
     setLoading(true);
+    setFilter("");
     setTab(0);
     fetch(`/api/search?pattern=${encodeURIComponent(pattern)}`)
       .then(r => r.json())
@@ -416,9 +510,9 @@ function App() {
   const resultList = useMemo(() => {
     if (fresh) return <h1>Search Away!</h1>;
     if (results.length === 0) return <h1>Couldn't find anything... Sorry!</h1>;
-    return <ResultsList results={tabulated[tab]} />;
+    return <ResultsList results={tabulated[tab] || []} />;
   }, [tabulated, tab]);
-  // <Loader />
+
   return (
     <Container>
       <Row>
@@ -426,11 +520,15 @@ function App() {
           <PanelSection title="Find">
             <SearchBar onSearch={search} />
           </PanelSection>
-          <PanelSection title="Filter" hideByDefault={true} />
-          <PanelSection title="Tree">
-            <TreeView tree={tree} />
+          <PanelSection title="File Filter" hideByDefault={true}>
+            <DelayInput onChange={setFilter} />
           </PanelSection>
-          <PanelSection title="Projects" hideByDefault={true} />
+          <PanelSection title="File Tree">
+            <TreeView tree={tree} onClick={path => alert("path: " + path)} />
+          </PanelSection>
+          <PanelSection title="Projects" hideByDefault={true}>
+            <ProjectList />
+          </PanelSection>
         </SideBar>
         <Content>
           {loading ? (
