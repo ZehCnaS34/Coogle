@@ -444,6 +444,7 @@ function TreeView({
                   depthColor || (highlightLeaf && isLeaf)
                     ? DEPTH_COLORS[depth % DEPTH_COLORS.length]
                     : "unset",
+                fontSize: highlightLeaf && isLeaf ? "1.3rem" : "unset",
                 cursor: "pointer",
                 border: "1px solid transparent",
                 "&:hover": {
@@ -554,14 +555,16 @@ function App() {
             <SearchBar onSearch={search} />
           </PanelSection>
           <PanelSection title="File Filter" hideByDefault={true}>
-            <TreeView
-              highlightLeaf={true}
-              tree={filterTree}
-              onClick={removeFilter}
-            />
+            {filters.length > 0 && (
+              <TreeView
+                highlightLeaf={true}
+                tree={filterTree}
+                onClick={removeFilter}
+              />
+            )}
           </PanelSection>
           <PanelSection title="File Tree">
-            <TreeView tree={tree} onClick={addFilter} />
+            <TreeView tree={tree} onClick={addFilter} highlightLeaf={true} />
           </PanelSection>
           <PanelSection title="Projects" hideByDefault={true}>
             <ProjectList />
