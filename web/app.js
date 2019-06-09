@@ -240,7 +240,9 @@ function useFileFilter(resource = []) {
   let filteredResource = useMemo(() => {
     if (filters.length === 0) return resource;
     return resource.filter(item => {
-      return filters.includes("/" + item.path);
+      return filters.some(value => {
+        return item.path.includes(value.slice(1));
+      });
     });
   }, [resource, filters]);
   return {
@@ -251,6 +253,9 @@ function useFileFilter(resource = []) {
         return [...old, path];
       });
     },
+    removeFilter(path) {
+      setFilters(filters.filter(filter => filter !== path));
+    },
     clearFilters() {
       setFilters([]);
     }
@@ -259,20 +264,27 @@ function useFileFilter(resource = []) {
 
 function useSearch() {
   const [results, setResult] = useState([]);
-  const { filters, addFilter, filteredResource, clearFilters } = useFileFilter(
-    results
-  );
+  const {
+    filters,
+    addFilter,
+    filteredResource,
+    clearFilters,
+    removeFilter
+  } = useFileFilter(results);
   const tabulated = useTabulation({ resource: filteredResource });
   const tree = useTree(results);
+  const filterTree = useTree(filteredResource);
 
   return {
     tree,
     filters,
     addFilter,
+    removeFilter,
     clearFilters,
     tabulated,
     results,
-    setResult
+    setResult,
+    filterTree
   };
 }
 
@@ -400,7 +412,14 @@ function PanelSection({ title, children, hideByDefault = false }) {
   );
 }
 
-function TreeView({ tree, depth = 0, parent = "", onClick = () => {} }) {
+function TreeView({
+  tree,
+  depth = 0,
+  parent = "",
+  onClick = () => {},
+  depthColor = false,
+  highlightLeaf = false
+}) {
   let keys = Object.keys(tree);
   return (
     <ul
@@ -415,11 +434,16 @@ function TreeView({ tree, depth = 0, parent = "", onClick = () => {} }) {
       }}
     >
       {keys.map((key, i) => {
+        const isLeaf = Object.values(tree[key]).length === 0;
         return (
           <li key={i}>
             <span
               onClick={() => onClick(parent + "/" + key)}
               css={{
+                color:
+                  depthColor || (highlightLeaf && isLeaf)
+                    ? DEPTH_COLORS[depth % DEPTH_COLORS.length]
+                    : "unset",
                 cursor: "pointer",
                 border: "1px solid transparent",
                 "&:hover": {
@@ -434,8 +458,10 @@ function TreeView({ tree, depth = 0, parent = "", onClick = () => {} }) {
             {Object.values(tree[key]).length === 0 ? null : (
               <TreeView
                 tree={tree[key]}
+                depthColor={depthColor}
                 depth={depth + 1}
                 parent={parent + "/" + key}
+                highlightLeaf={highlightLeaf}
                 onClick={onClick}
               />
             )}
@@ -489,8 +515,10 @@ function App() {
     results,
     setResult,
     tabulated,
+    filterTree,
     tree,
     filters,
+    removeFilter,
     addFilter,
     clearFilters
   } = useSearch();
@@ -526,9 +554,11 @@ function App() {
             <SearchBar onSearch={search} />
           </PanelSection>
           <PanelSection title="File Filter" hideByDefault={true}>
-            {filters.map((filter, i) => (
-              <div key={i}>{filter}</div>
-            ))}
+            <TreeView
+              highlightLeaf={true}
+              tree={filterTree}
+              onClick={removeFilter}
+            />
           </PanelSection>
           <PanelSection title="File Tree">
             <TreeView tree={tree} onClick={addFilter} />
