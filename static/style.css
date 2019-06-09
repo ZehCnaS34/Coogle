@@ -1,0 +1,74 @@
+html {
+  font-family: "IBM Plex Mono", monospace;
+  color: white;
+  background: black;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+input[type="text"] {
+  font-family: "IBM Plex Mono", monospace;
+  background: black;
+  border-radius: 0.4rem;
+  border: none;
+  padding: 0.5rem;
+  color: #0096ff;
+  font-size: large;
+}
+
+h1 {
+  text-align: center;
+}
+
+button {
+  border-radius: 0.4rem;
+  color: #0096ff;
+  border: 1px solid #0096ff;
+  padding: 0.5rem;
+  background: black;
+}
+
+#loader {
+  position: relative;
+  left: 50vw;
+  top: 50vh;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 50px;
+  animation: rotate 1s ease-in-out infinite, opacity 1s,
+    pulse 1s ease-in-out alternate infinite;
+}
+
+@keyframes pulse {
+  0% {
+    border-radius: 1rem;
+    background: #0096ff;
+    box-shadow: 0 0 0.5rem #333, 0 0 0.5rem #0096ff;
+  }
+  100% {
+    border-radius: 0rem;
+    background: #333;
+    box-shadow: 0 0 1rem #0096ff, 0 0 1rem #333;
+  }
+}
+
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}

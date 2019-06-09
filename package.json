@@ -1,0 +1,23 @@
+{
+  "name": "org-search",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Alexander Sanchez <asanchez.dev@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "webpack -c webpack.config.js --watch"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.4.5",
+    "@babel/preset-env": "^7.4.5",
+    "@babel/preset-react": "^7.0.0",
+    "babel-loader": "^8.0.6",
+    "webpack": "^4.33.0",
+    "webpack-cli": "^3.3.2"
+  },
+  "dependencies": {
+    "@emotion/core": "^10.0.10",
+    "react": "^16.8.6",
+    "react-dom": "^16.8.6"
+  }
+}
