@@ -564,7 +564,14 @@ function App() {
             )}
           </PanelSection>
           <PanelSection title="File Tree">
-            <TreeView tree={tree} onClick={addFilter} highlightLeaf={true} />
+            <TreeView
+              tree={tree}
+              onClick={path => {
+                addFilter(path);
+                setTab(0);
+              }}
+              highlightLeaf={true}
+            />
           </PanelSection>
           <PanelSection title="Projects" hideByDefault={true}>
             <ProjectList />
