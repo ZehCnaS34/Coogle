@@ -1,7 +1,55 @@
 /** @jsx jsx*/
 import ReactDOM from "react-dom";
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  createContext,
+  useContext
+} from "react";
 import { jsx, css } from "@emotion/core";
+
+const ApplicationStateContext = createContext();
+
+function ApplicationState({ children }) {
+  const [projects, setProjects] = useState([]);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  return (
+    <ApplicationStateContext.Provider
+      value={{
+        projects,
+        setProjects,
+        results,
+        setResults,
+        loading,
+        setLoading
+      }}
+    >
+      {children}
+    </ApplicationStateContext.Provider>
+  );
+}
+
+/**
+ * Returns a new string with the substring gone.
+ * @param {string} str
+ * @param {string} pattern
+ */
+function removePattern(str, pattern) {
+  let index = str.indexOf(pattern);
+  if (index === -1) return str;
+  return str.slice(0, index) + str.slice(index + pattern.length);
+}
+
+function buildUrl(project) {
+  const { name: __rawName, company, owner } = project;
+  const name = removePattern(__rawName, ".git");
+
+  return `https://${company}.com/${owner}/${name}/blob/master`;
+}
 
 function debounce(fn, delay = 100) {
   let timeout = null;
@@ -58,6 +106,26 @@ function HighlightContent({ content, start, end }) {
 }
 
 function ResultItem({ result }) {
+  const { projects } = useContext(ApplicationStateContext);
+
+  const onLineClick = result => {
+    console.log(projects);
+    const { path: __path } = result;
+
+    let projectName = __path.split("/")[0];
+    let project = projects.find(({ name }) => projectName === name);
+    const path =
+      buildUrl(project) +
+      "/" +
+      __path
+        .split("/")
+        .slice(1)
+        .join("/") +
+      `#L${result.line}`; // NOTE: Kinda hacky.
+
+    window.open(path, projectName);
+  };
+
   return (
     <div
       css={{
@@ -98,6 +166,7 @@ function ResultItem({ result }) {
             borderBottomLeftRadius: "0.4rem",
             borderLeft: "2px solid #0096ff"
           }}
+          onClick={() => onLineClick(result)}
         >
           {result.line}
         </span>
@@ -473,29 +542,40 @@ function TreeView({
   );
 }
 
-function ProjectList() {
-  let [projects, setProjects] = useState([]);
+function useProjects() {
+  const { projects, setProjects } = useContext(ApplicationStateContext);
+  // let [projects, setProjects] = useState([]);
 
   const register = () => {
     const url = prompt("Repo Name");
     fetch(`/api/register?url=${encodeURIComponent(url)}`)
       .then(r => r.text())
       .then(() => {
-        return fetch("/api/repos");
-      })
-      .then(r => r.json())
-      .then(repos => {
-        setProjects(repos);
+        fetchProjects();
       });
   };
 
-  useEffect(() => {
+  function fetchProjects() {
     fetch("/api/repos")
       .then(response => response.json())
       .then(repos => {
         setProjects(repos);
       });
+  }
+
+  useEffect(() => {
+    fetchProjects();
   }, []);
+
+  return {
+    projects,
+    fetchProjects,
+    register
+  };
+}
+
+function ProjectList() {
+  let { projects, register } = useProjects();
 
   return (
     <Column>
@@ -548,52 +628,54 @@ function App() {
   }, [tabulated, tab]);
 
   return (
-    <Container>
-      <Row>
-        <SideBar>
-          <PanelSection title="Find">
-            <SearchBar onSearch={search} />
-          </PanelSection>
-          <PanelSection title="File Filter" hideByDefault={true}>
-            {filters.length > 0 && (
+    <ApplicationState>
+      <Container>
+        <Row>
+          <SideBar>
+            <PanelSection title="Find">
+              <SearchBar onSearch={search} />
+            </PanelSection>
+            <PanelSection title="File Filter" hideByDefault={true}>
+              {filters.length > 0 && (
+                <TreeView
+                  highlightLeaf={true}
+                  tree={filterTree}
+                  onClick={removeFilter}
+                />
+              )}
+            </PanelSection>
+            <PanelSection title="File Tree" hideByDefault={true}>
               <TreeView
+                tree={tree}
+                onClick={path => {
+                  addFilter(path);
+                  setTab(0);
+                }}
                 highlightLeaf={true}
-                tree={filterTree}
-                onClick={removeFilter}
               />
-            )}
-          </PanelSection>
-          <PanelSection title="File Tree">
-            <TreeView
-              tree={tree}
-              onClick={path => {
-                addFilter(path);
-                setTab(0);
-              }}
-              highlightLeaf={true}
-            />
-          </PanelSection>
-          <PanelSection title="Projects" hideByDefault={true}>
-            <ProjectList />
-          </PanelSection>
-        </SideBar>
-        <Content>
-          {loading ? (
-            <Loader />
-          ) : (
-            <React.Fragment>
-              <Tabulation
-                size={tabulated.length}
-                active={tab}
-                onSelect={setTab}
-              />
+            </PanelSection>
+            <PanelSection title="Projects" hideByDefault={true}>
+              <ProjectList />
+            </PanelSection>
+          </SideBar>
+          <Content>
+            {loading ? (
+              <Loader />
+            ) : (
+              <React.Fragment>
+                <Tabulation
+                  size={tabulated.length}
+                  active={tab}
+                  onSelect={setTab}
+                />
 
-              {resultList}
-            </React.Fragment>
-          )}
-        </Content>
-      </Row>
-    </Container>
+                {resultList}
+              </React.Fragment>
+            )}
+          </Content>
+        </Row>
+      </Container>
+    </ApplicationState>
   );
 }
 

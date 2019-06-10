@@ -42,6 +42,7 @@ impl Paths {
 
 fn in_black_list(dir: &Path) -> bool {
     let mut black_list = HashSet::new();
+    // Ew.
     black_list.insert(".git");
     black_list.insert("target");
     black_list.insert("node_modules");
@@ -49,86 +50,15 @@ fn in_black_list(dir: &Path) -> bool {
     black_list.insert("bundle.js.map");
     black_list.insert(".DS_Store");
 
-    // println!("Dir {:?}", dir.to_str());
-
     if let Some(file_name) = dir.file_name() {
-        // println!("FileName {:?}", file_name);
         let stem = file_name.to_str().unwrap();
         return black_list.contains(stem);
     } else if let Some(stem) = dir.file_stem() {
-        // println!("Stem {:?}", stem);
         let file_name = stem.to_str().unwrap();
         return black_list.contains(file_name);
     } else {
         true
     }
-}
-
-fn search_dir(dir: &Path, pattern: &String) -> Vec<Content> {
-    let mut output = vec![];
-    if in_black_list(dir) {
-        return vec![];
-    }
-
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries {
-            let path = entry.unwrap().path();
-            let path = path.as_path();
-            if path.is_dir() {
-                let mut results = search_dir(&path, pattern);
-                output.append(&mut results);
-            } else {
-                if !in_black_list(path) {
-                    let mut results = search_file(path, pattern);
-                    output.append(&mut results);
-                }
-            }
-        }
-    }
-
-    output
-}
-
-fn search_file(file_name: &Path, filter: &String) -> Vec<Content> {
-    let matcher = Regex::new(filter.as_str()).unwrap();
-    let contents = fs::read_to_string(&file_name);
-
-    if let Err(_) = contents {
-        // println!("Error reading {:?} {:?}", file_name, e);
-        return vec![];
-    }
-
-    let mut line_number = 0;
-    let matches: Vec<Content> = contents
-        .unwrap()
-        .lines()
-        .map(|line| {
-            line_number += 1;
-            if let Some(matched) = matcher.find(line) {
-                let file_name = file_name.clone().to_str().unwrap();
-                return Some(Content {
-                    start: matched.start() as u64,
-                    end: matched.end() as u64,
-                    line: line_number,
-                    content: String::from(line),
-                    path: file_name.to_string(),
-                });
-            }
-            return None;
-        })
-        .filter(|content| content.is_some())
-        .map(|content| content.expect(""))
-        .collect();
-    return matches;
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Content {
-    line: u64,
-    start: u64,
-    end: u64,
-    content: String,
-    path: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -156,7 +86,6 @@ impl Project {
         .unwrap();
 
         let caps = https_matcher.captures(url.as_str());
-        println!("Captured Group {:?}", caps);
         if caps.is_some() {
             let caps = caps.unwrap();
             let url = caps[0].to_string();
@@ -175,7 +104,6 @@ impl Project {
             Regex::new(r"git@(?P<company>github)\.com:(?P<owner>(\w)+)/(?P<project>(\S)+)(\.git)?")
                 .unwrap();
         let caps = git_matcher.captures(url.as_str());
-        println!("Captured Group {:?}", caps);
         if caps.is_some() {
             let caps = caps.unwrap();
             let url = caps[0].to_string();
@@ -196,7 +124,6 @@ impl Project {
     fn clone(&self, directory: &Path) -> Result<(), &'static str> {
         let mut call_backs = RemoteCallbacks::new();
         call_backs.credentials(|one, two, three| {
-            println!("Using Credentials, {:?}, {:?}, {:?}", one, two, three);
             let public_key_path = Paths::get_public_ssh_key();
             let public_key_path = Path::new(public_key_path.as_str());
             let private_key_path = Paths::get_private_ssh_key();
@@ -246,7 +173,6 @@ impl Project {
                     name: name.to_string(),
                 };
                 output.push(project);
-                println!("Project {:?}/{:?}", owner, name);
             }
         }
 
@@ -385,14 +311,11 @@ fn register(url: String) -> Json<&'static str> {
         return Json("Invalid URL");
     }
 
-    println!("{:?}", project);
-
     let project = project.unwrap();
     let project_location = format!("{}/{}", project.owner, project.name);
     let project_location = Path::new(project_location.as_str());
 
     let resource_dir = Paths::get_resources();
-    println!("Register/ {:?}", resource_dir);
     let resource_dir = Path::new(resource_dir.as_str());
     let output_dir = resource_dir.join(project_location);
 
